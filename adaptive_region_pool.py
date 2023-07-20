@@ -5,7 +5,7 @@ import time
 
 
 class Adaptive_Region_Specific_TverskyLoss(nn.Module):
-    def __init__(self, smooth=1e-5, region_size=(16, 16, 16), do_bg=True, A=0.3, B=0.4):
+    def __init__(self, smooth=1e-5, region_size=(16, 16, 16), do_bg=True, batch_dice=True, A=0.3, B=0.4):
         """
         region_size: the size of per region in (z, x, y)
         3D region_size's axis in (z, x, y)
@@ -15,17 +15,16 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
         self.smooth = smooth
         self.region_size = region_size
         self.do_bg = do_bg
+        self.batch_dice = batch_dice
         self.dim = len(region_size)
         assert self.dim in [2, 3], "The num of dim must be 2 or 3."
         if self.dim == 3:
-            self.pool = nn.AvgPool3d(kernel_size=(region_size[2], region_size[0], region_size[1]),
-                                     stride=(region_size[2], region_size[0], region_size[1]))
+            self.pool = nn.AvgPool3d(kernel_size=region_size, stride=region_size)
         elif self.dim == 2:
             self.pool = nn.AvgPool2d(kernel_size=region_size, stride=region_size)
 
         self.A = A
         self.B = B
-        self.each_box_num = np.prod(self.region_size)
 
     def forward(self, x, y):
         # 默认x是未经过softmax的。2D/3D: [batchsize, c, (z,) x, y]
@@ -39,9 +38,9 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
             assert x.shape[-2] % self.region_size[0] == 0, "x The data/region_size must be divisible"
             assert x.shape[-1] % self.region_size[1] == 0, "y The data/region_size must be divisible"
         elif self.dim == 3:
-            assert x.shape[-2] % self.region_size[0] == 0, "x The data/region_size must be divisible"
-            assert x.shape[-1] % self.region_size[1] == 0, "y The data/region_size must be divisible"
-            assert x.shape[-3] % self.region_size[2] == 0, "z The data/region_size must be divisible"
+            assert x.shape[-3] % self.region_size[0] == 0, "x The data/region_size must be divisible"
+            assert x.shape[-2] % self.region_size[1] == 0, "y The data/region_size must be divisible"
+            assert x.shape[-1] % self.region_size[2] == 0, "z The data/region_size must be divisible"
 
         if not self.do_bg:
             x = x[:, 1:]
@@ -71,16 +70,24 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
         region_fp = self.pool(fp)
         region_fn = self.pool(fn)
 
-        # [batchsize, class_num, (z/region_z,) x/region_x, y/region_y]
+        if self.batch_dice:
+            region_tp = region_tp.sum(0)
+            region_fp = region_fp.sum(0)
+            region_fn = region_fn.sum(0)
+
+        # [(batchsize,) class_num, (z/region_z,) x/region_x, y/region_y]
         alpha = self.A + self.B * (region_fp + self.smooth) / (region_fp + region_fn + self.smooth)
         beta = self.A + self.B * (region_fn + self.smooth) / (region_fp + region_fn + self.smooth)
 
-        # [batchsize, class_num, (z / region_z,) x / region_x, y / region_y]
+        # [(batchsize,) class_num, (z/region_z,) x/region_x, y/region_y]
         region_tversky = (region_tp + self.smooth) / (region_tp + alpha * region_fp + beta * region_fn + self.smooth)
         region_tversky = 1 - region_tversky
 
-        # [batchsize, class_num]
-        region_tversky = region_tversky.sum(list(range(2, len(shp_x))))
+        # [(batchsize,) class_num]
+        if self.batch_dice:
+            region_tversky = region_tversky.sum(list(range(1, len(shp_x) - 1)))
+        else:
+            region_tversky = region_tversky.sum(list(range(2, len(shp_x))))
 
         region_tversky = region_tversky.mean()
 
@@ -88,8 +95,7 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
 
 
 if __name__ == "__main__":
-    # the number of regions in 3D-test and 2D-test is 1024
-    loss = Adaptive_Region_Specific_TverskyLoss(region_size=(16, 14, 8))
+    loss = Adaptive_Region_Specific_TverskyLoss(region_size=(8, 16, 14))
     size = (2, 2, 64, 128, 224)
     pre = torch.softmax(torch.rand(size), dim=1)
     label = torch.randint(0, 2, size)
