@@ -7,7 +7,7 @@ import time
 class Adaptive_Region_Specific_TverskyLoss(nn.Module):
     def __init__(self, smooth=1e-5, num_region_per_axis=(16, 16, 16), do_bg=True, batch_dice=True, A=0.3, B=0.4):
         """
-        num_region_per_axis means how many
+        num_region_per_axis: the number of boxes of each axis in (z, x, y)
         3D num_region_per_axis's axis in (z, x, y)
         2D num_region_per_axis's axis in (x, y)
         """
