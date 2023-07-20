@@ -7,7 +7,8 @@ import time
 class Adaptive_Region_Specific_TverskyLoss(nn.Module):
     def __init__(self, smooth=1e-5, region_size=(16, 16, 16), do_bg=True, A=0.3, B=0.4):
         """
-        3D region_size's axis in (x, y, z)
+        region_size: the size of per region in (z, x, y)
+        3D region_size's axis in (z, x, y)
         2D region_size's axis in (x, y)
         """
         super(Adaptive_Region_Specific_TverskyLoss, self).__init__()
