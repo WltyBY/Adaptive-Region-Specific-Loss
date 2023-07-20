@@ -55,7 +55,7 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
         fp = x * (1 - y_onehot)
         fn = (1 - x) * y_onehot
 
-        # the three in [batchsize, class_num, (z/region_z,) x/region_x, y/region_y]
+        # the three in [batchsize, class_num, (num_region_per_axis_z,) num_region_per_axis_x, num_region_per_axis_y]
         region_tp = self.pool(tp)
         region_fp = self.pool(fp)
         region_fn = self.pool(fn)
@@ -65,11 +65,11 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
             region_fp = region_fp.sum(0)
             region_fn = region_fn.sum(0)
 
-        # [(batchsize,) class_num, (z/region_z,) x/region_x, y/region_y]
+        # [(batchsize,) class_num, (num_region_per_axis_z,) num_region_per_axis_x, num_region_per_axis_y]
         alpha = self.A + self.B * (region_fp + self.smooth) / (region_fp + region_fn + self.smooth)
         beta = self.A + self.B * (region_fn + self.smooth) / (region_fp + region_fn + self.smooth)
 
-        # [(batchsize,) class_num, (z / region_z,) x / region_x, y / region_y]
+        # [(batchsize,) class_num, (num_region_per_axis_z,) num_region_per_axis_x, num_region_per_axis_y]
         region_tversky = (region_tp + self.smooth) / (region_tp + alpha * region_fp + beta * region_fn + self.smooth)
         region_tversky = 1 - region_tversky
 
@@ -85,7 +85,6 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
 
 
 if __name__ == "__main__":
-    # the numbers of regions in 3D-test and 2D-test are 512 and 64
     loss = Adaptive_Region_Specific_TverskyLoss(num_region_per_axis=(8, 8, 14))
     size = (2, 2, 64, 128, 224)
     pre = torch.softmax(torch.rand(size), dim=1)
