@@ -5,7 +5,7 @@ import time
 
 
 class Adaptive_Region_Specific_TverskyLoss(nn.Module):
-    def __init__(self, smooth=1e-5, region_size=(16, 16, 16), do_bg=True, batch_dice=True, A=0.3, B=0.4):
+    def __init__(self, smooth=1e-5, region_size=(16, 16, 16), do_bg=True, batch_dice=True, A=0.3, B=0.4, apply_nonlin=True):
         """
         region_size: the size of per region in (z, x, y)
         3D region_size's axis in (z, x, y)
@@ -25,10 +25,12 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
 
         self.A = A
         self.B = B
+        self.apply_nonlin = apply_nonlin
 
     def forward(self, x, y):
-        # 默认x是未经过softmax的。2D/3D: [batchsize, c, (z,) x, y]
-        x = torch.softmax(x, dim=1)
+        # 2D/3D: [batchsize, c, (z,) x, y]
+        if self.apply_nonlin:
+            x = torch.softmax(x, dim=1)
 
         shp_x, shp_y = x.shape, y.shape
         assert self.dim == (len(shp_x) - 2), "The region size must match the data's size."
@@ -84,10 +86,10 @@ class Adaptive_Region_Specific_TverskyLoss(nn.Module):
         region_tversky = 1 - region_tversky
 
         # [(batchsize,) class_num]
-        if self.batch_dice:
-            region_tversky = region_tversky.sum(list(range(1, len(shp_x) - 1)))
-        else:
-            region_tversky = region_tversky.sum(list(range(2, len(shp_x))))
+        # if self.batch_dice:
+        #     region_tversky = region_tversky.sum(list(range(1, len(shp_x) - 1)))
+        # else:
+        #     region_tversky = region_tversky.sum(list(range(2, len(shp_x))))
 
         region_tversky = region_tversky.mean()
 
